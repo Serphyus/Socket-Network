@@ -21,6 +21,7 @@ Features
 
 Future Improvements
 -------------------
+- Properly comment each method
 - Fix bugs with timeout
 - Add a data transfer queue for each client
 - Add a pinging functionality to each client which can optionally run in background to make sure client is connected
