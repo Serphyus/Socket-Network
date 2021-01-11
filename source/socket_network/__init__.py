@@ -72,6 +72,9 @@ class Server:
                 'client_listener': Thread(target=self._listenForClients, args=(self.max_clients,), daemon=True),
             }
         )
+
+        # start the client listener thread
+        self.server_threads.client_listener.start()
     
 
     def _listenForClients(self, max_clients, delay=0.1):
@@ -172,11 +175,6 @@ class Server:
         except socket.timeout:
             if self.disconnect_at_timeout:
                 self.removeClient(client_address)
-            
-    
-    def start(self):
-        # start the client listener thread
-        self.server_threads.client_listener.start()
 
 
 
