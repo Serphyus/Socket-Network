@@ -54,13 +54,14 @@ class NetworkUtils:
 
 class Server:
     class Client:
-        def __init__(self, server, address, clientsocket, socket_timeout=5):
+        def __init__(self, server, address, clientsocket, socket_timeout=None):
             # set attributes for the client
             self.address = address
             self.clientsocket = clientsocket
             
-            # configure a timeout for the socket
-            self.clientsocket.settimeout(socket_timeout)
+            # (optional) set a timeout for the socket
+            if socket_timeout != None:
+                self.clientsocket.settimeout(socket_timeout)
 
 
 
@@ -193,11 +194,14 @@ class Server:
 
 
 class Client:
-    def __init__(self, server_address, socket_timeout=5, **kwargs):
+    def __init__(self, server_address, socket_timeout=None, **kwargs):
         # setup the client socket and establish a connection with the server
         self.s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.s.connect(server_address)
-        #self.s.settimeout(socket_timeout)
+        
+        # (optional) set a timeout for the socket
+        if socket_timeout != None:
+            self.s.settimeout(socket_timeout)
 
         self.max_header_size = kwargs.get('max_header_size', 256)
 
