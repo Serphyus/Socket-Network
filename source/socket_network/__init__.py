@@ -19,7 +19,7 @@ class NetworkUtils:
 
 
     @classmethod
-    def _sendData(cls, _socket, transmission_type, data, compress, encoder='simple'):
+    def _sendData(cls, _socket, transmission_type, data, compress, encoder):
         encoder = cls.data_encoders[encoder]
         
         if type(data) != bytes:
@@ -46,7 +46,7 @@ class NetworkUtils:
 
 
     @classmethod
-    def _recvData(cls, _socket, header_size, encoder='simple'):
+    def _recvData(cls, _socket, header_size, encoder):
         encoder = cls.data_encoders[encoder]
         
         header = encoder.loads(_socket.recv(header_size))
@@ -160,7 +160,7 @@ class Server:
         self._updateClientQueue()
 
 
-    def sendData(self, client_address: tuple, data, compress=False, transmission_type='data_transfer', encoder='simple', max_timeouts=5):
+    def sendData(self, client_address: tuple, data, transmission_type='data_transfer', compress=False, encoder='simple', max_timeouts=5):
         # get the clientsocket of the client in self.clients_pool matching the address
         clientsocket = self.clients_pool[
             self._getClientIndex(client_address)
@@ -216,14 +216,14 @@ class Client:
         self.max_header_size = kwargs.get('max_header_size', 256)
 
 
-    def sendData(self, data, compress=False, transmission_type='data_transfer', encoder='simple'):
+    def sendData(self, data, transmission_type='data_transfer', compress=False, encoder='simple'):
         # send data using the socket self.s
         NetworkUtils._sendData(self.s, transmission_type, data, compress, encoder)
 
 
     def recvData(self, encoder='simple'):
         # receieve data using the socket self.s
-        return NetworkUtils._recvData(self.s, self.max_header_size)
+        return NetworkUtils._recvData(self.s, self.max_header_size, encoder)
     
 
     def disconnect(self):
