@@ -215,7 +215,3 @@ class Client:
     def disconnect(self):
         # disconnect from the server
         self.s.close()
-
-
-if __name__ == "__main__":
-    exit()
