@@ -7,34 +7,48 @@ from threading import Thread
 
 
 
-class SocketUtils:
+class NetworkUtils:
     @staticmethod
-    def _sendData(_socket, data, compressed):
-        data = dill.dumps(data)
+    def ping(): ...
+
+
+    @staticmethod
+    def _sendData(_socket, transmission_type, data, compress):
+        if type(data) != bytes:
+            body = dill.dumps(data)
+            pre_encoded = False
+        else:
+            body = data
+            pre_encoded = True
         
-        if compressed:
-            data = zlib.compress(data)
+        if compress:
+            body = zlib.compress(body)
 
         header = dill.dumps(
             {
-                'packet_size': len(data),
-                'compressed': compressed
+                'transmission_type': transmission_type,
+                'body_size': len(body),
+                'compressed': compress,
+                'pre_encoded': pre_encoded
             }
         )
 
         _socket.send(header)
-        _socket.send(data)
+        _socket.send(body)
 
 
     @staticmethod
     def _recvData(_socket, header_size):
         header = dill.loads(_socket.recv(header_size))
-        data = _socket.recv(header['packet_size'])
+        body = _socket.recv(header['body_size'])
 
         if header['compressed']:
-            data = zlib.decompress(data)
+            body = zlib.decompress(body)
 
-        return dill.loads(data)
+        if header['pre_encoded']:
+            body = dill.loads(body)
+
+        return [header, body]
 
 
 
@@ -63,7 +77,7 @@ class Server:
 
         self.max_header_size = kwargs.get('max_header_size', 4096)
         self.accepting_clients = kwargs.get('accepting_clients', True)
-        self.disconnect_at_timeout = kwargs.get('disconnect_at_timeout', True)
+        self.disconnect_at_timeout = kwargs.get('disconnect_at_timeout', False)
 
         # create threads to run in background
         self.server_threads = type(
@@ -135,7 +149,7 @@ class Server:
         self._updateClientQueue()
 
 
-    def sendData(self, client_address: tuple, data, compressed=False, max_timeouts=5):
+    def sendData(self, client_address: tuple, data, compress=False, transmission_type='data_transfer', max_timeouts=5):
         # get the clientsocket of the client in self.clients_pool matching the address
         clientsocket = self.clients_pool[
             self._getClientIndex(client_address)
@@ -143,7 +157,7 @@ class Server:
 
         # try to send the data to client
         try:
-            SocketUtils._sendData(clientsocket, data, compressed)
+            NetworkUtils._sendData(clientsocket, transmission_type, data, compress)
 
         # if the client connection is broken remove the client
         except ConnectionError:
@@ -164,7 +178,7 @@ class Server:
 
         # try to recv data from client
         try:
-            return SocketUtils._recvData(clientsocket, self.max_header_size)
+            return NetworkUtils._recvData(clientsocket, self.max_header_size)
 
         # if the client connection is broken remove the client
         except ConnectionError:
@@ -188,14 +202,14 @@ class Client:
         self.max_header_size = kwargs.get('max_header_size', 4096)
 
 
-    def sendData(self, data, compressed=False):
+    def sendData(self, data, compress=False, transmission_type='data_transfer'):
         # send data using the socket self.s
-        SocketUtils._sendData(self.s, data, compressed)
+        NetworkUtils._sendData(self.s, transmission_type, data, compress)
 
 
     def recvData(self):
         # receieve data using the socket self.s
-        return SocketUtils._recvData(self.s, self.max_header_size)
+        return NetworkUtils._recvData(self.s, self.max_header_size)
     
 
     def disconnect(self):
