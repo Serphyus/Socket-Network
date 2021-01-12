@@ -45,7 +45,7 @@ class NetworkUtils:
         if header['compressed']:
             body = zlib.decompress(body)
 
-        if header['pre_encoded']:
+        if not header['pre_encoded']:
             body = dill.loads(body)
 
         return [header, body]
@@ -75,7 +75,7 @@ class Server:
         self.clients_pool = []
         self.clients_queue = []
 
-        self.max_header_size = kwargs.get('max_header_size', 4096)
+        self.max_header_size = kwargs.get('max_header_size', 256)
         self.accepting_clients = kwargs.get('accepting_clients', True)
         self.disconnect_at_timeout = kwargs.get('disconnect_at_timeout', False)
 
@@ -199,7 +199,7 @@ class Client:
         self.s.connect(server_address)
         #self.s.settimeout(socket_timeout)
 
-        self.max_header_size = kwargs.get('max_header_size', 4096)
+        self.max_header_size = kwargs.get('max_header_size', 256)
 
 
     def sendData(self, data, compress=False, transmission_type='data_transfer'):
