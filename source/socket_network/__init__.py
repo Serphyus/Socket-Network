@@ -2,6 +2,7 @@ import socket
 import pickle
 import dill
 import zlib
+from os import urandom
 from time import sleep
 from random import randint
 from threading import Thread
@@ -9,19 +10,35 @@ from threading import Thread
 
 
 class NetworkUtils:
-    data_encoders = {
-        'simple': pickle,
-        'complex': dill
-    }
+    class transmission_types:
+        ping = 0
+        data_transfer = 1
 
-    @staticmethod
-    def ping(): ...
+    class data_encoders:
+        simple_encoder = pickle
+        complex_encoder = pickle
 
 
     @classmethod
-    def _sendData(cls, _socket, transmission_type, data, compress, encoder):
-        encoder = cls.data_encoders[encoder]
-        
+    def ping(cls, _socket):
+        cls._sendData(
+            _socket, cls.transmission_types.ping, urandom(64), 
+            False, cls.data_encoders.simple_encoder
+        )
+
+
+    @classmethod
+    def _check_transmission_type(cls, _type):
+        if not _type in [getattr(cls.transmission_types, i) for i in dir(cls.transmission_types) if not i.startswith('__')]:
+            return False
+        return True
+
+
+    @classmethod
+    def _sendData(cls, _socket, data, transmission_type, compress, encoder):
+        if not cls._check_transmission_type(transmission_type):
+            raise TypeError('invalid transmission_type provided')
+
         if type(data) != bytes:
             body = encoder.dumps(data)
             pre_encoded = False
@@ -31,7 +48,7 @@ class NetworkUtils:
         
         if compress:
             body = zlib.compress(body)
-
+        
         header = encoder.dumps(
             {
                 'transmission_type': transmission_type,
@@ -47,8 +64,6 @@ class NetworkUtils:
 
     @classmethod
     def _recvData(cls, _socket, header_size, encoder):
-        encoder = cls.data_encoders[encoder]
-        
         header = encoder.loads(_socket.recv(header_size))
         body = _socket.recv(header['body_size'])
 
@@ -86,6 +101,10 @@ class Server:
         self.clients_pool = []
         self.clients_queue = []
 
+        # create a list for banned ip addresses
+        self.banned_clients = []
+
+        # set settings from kwargs
         self.max_header_size = kwargs.get('max_header_size', 256)
         self.accepting_clients = kwargs.get('accepting_clients', True)
         self.disconnect_at_timeout = kwargs.get('disconnect_at_timeout', False)
@@ -109,14 +128,20 @@ class Server:
 
                 # accept a new client and create a client instance
                 clientsocket, address = self.s.accept()
-                client = self.Client(self, address, clientsocket)
-                
-                if not self.accepting_clients:
-                    break
+                if not address[0] in self.banned_clients:
+                    client = self.Client(self, address, clientsocket)
 
-                # add new client to the queue
-                self._updateClientQueue(client)
+                    if not self.accepting_clients:
+                        break
 
+                    # add new client to the queue
+                    self._updateClientQueue(client)
+                    del(client)
+
+                else: clientsocket.close()
+                del(clientsocket, address)
+
+            # while server is not accepting clients wait 0.1 seconds for each time it checks
             sleep(0.1)
 
 
@@ -132,9 +157,9 @@ class Server:
 
     def _getClientIndex(self, client_address: tuple):
         # go through each client in the pool and return the index that matches the address 
-        for client in self.clients_pool:
+        for index, client in enumerate(self.clients_pool):
             if client_address == client.address:
-                return self.clients_pool.index(client)
+                return index
         raise IndexError(f'{client_address} was not found in self.client_pool')
 
 
@@ -142,7 +167,17 @@ class Server:
         return [client.address for client in self.clients_pool]
 
 
-    def removeClient(self, client_address: tuple):
+    def ban_ip_address(self, ip_address):
+        if ip_address not in self.banned_clients:
+            self.banned_clients.append(ip_address)
+
+
+    def unban_ip_address(self, ip_address):
+        if ip_address in self.banned_clients:
+            self.banned_clients.remove(ip_address)
+
+
+    def removeClient(self, client_address: tuple, ban_ip=False):
         # get client index that matches the client_address parameter from client pool
         client_index = self._getClientIndex(client_address)
 
@@ -159,8 +194,11 @@ class Server:
         # update the client queue so that more clients may connect
         self._updateClientQueue()
 
+        if ban_ip:
+            self.ban_ip_address(client_address[0])
 
-    def sendData(self, client_address: tuple, data, transmission_type='data_transfer', compress=False, encoder='simple', max_timeouts=5):
+
+    def sendData(self, client_address: tuple, data, transmission_type=NetworkUtils.transmission_types.data_transfer, compress=False, encoder=NetworkUtils.data_encoders.simple_encoder, max_timeouts=5):
         # get the clientsocket of the client in self.clients_pool matching the address
         clientsocket = self.clients_pool[
             self._getClientIndex(client_address)
@@ -168,7 +206,7 @@ class Server:
 
         # try to send the data to client
         try:
-            NetworkUtils._sendData(clientsocket, transmission_type, data, compress, encoder)
+            NetworkUtils._sendData(clientsocket, data, transmission_type, compress, encoder)
 
         # if the client connection is broken remove the client
         except ConnectionError:
@@ -181,7 +219,7 @@ class Server:
 
 
 
-    def recvData(self, client_address: tuple, encoder='simple', max_timeouts=4):
+    def recvData(self, client_address: tuple, encoder=NetworkUtils.data_encoders.simple_encoder, max_timeouts=4):
         # get the clientsocket of the client in self.clients_pool matching the address
         clientsocket = self.clients_pool[
             self._getClientIndex(client_address)
@@ -225,11 +263,11 @@ class Client:
         self.s.close()
 
 
-    def sendData(self, data, transmission_type='data_transfer', compress=False, encoder='simple'):
+    def sendData(self, data, transmission_type=NetworkUtils.transmission_types.data_transfer, compress=False, encoder=NetworkUtils.data_encoders.simple_encoder):
         # send data using the socket self.s
-        NetworkUtils._sendData(self.s, transmission_type, data, compress, encoder)
+        NetworkUtils._sendData(self.s, data, transmission_type, compress, encoder)
 
 
-    def recvData(self, encoder='simple'):
+    def recvData(self, encoder=NetworkUtils.data_encoders.simple_encoder):
         # receieve data using the socket self.s
         return NetworkUtils._recvData(self.s, self.max_header_size, encoder)
