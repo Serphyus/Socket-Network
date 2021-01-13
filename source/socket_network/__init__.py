@@ -16,7 +16,7 @@ class NetworkUtils:
 
     class data_encoders:
         simple_encoder = pickle
-        complex_encoder = pickle
+        complex_encoder = dill
 
 
     @classmethod
