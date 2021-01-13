@@ -204,16 +204,25 @@ class Server:
 
 
 class Client:
-    def __init__(self, server_address, socket_timeout=None, **kwargs):
+    def __init__(self, socket_timeout=None, **kwargs):
         # setup the client socket and establish a connection with the server
         self.s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.s.connect(server_address)
         
         # (optional) set a timeout for the socket
         if socket_timeout != None:
             self.s.settimeout(socket_timeout)
 
         self.max_header_size = kwargs.get('max_header_size', 256)
+
+
+    def connect(self, server_address):
+        # connect to server
+        self.s.connect(server_address)
+
+
+    def disconnect(self):
+        # disconnect from the server
+        self.s.close()
 
 
     def sendData(self, data, transmission_type='data_transfer', compress=False, encoder='simple'):
@@ -224,8 +233,3 @@ class Client:
     def recvData(self, encoder='simple'):
         # receieve data using the socket self.s
         return NetworkUtils._recvData(self.s, self.max_header_size, encoder)
-    
-
-    def disconnect(self):
-        # disconnect from the server
-        self.s.close()
