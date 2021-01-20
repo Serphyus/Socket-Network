@@ -1,7 +1,7 @@
 import socket
 import pickle
-import dill
 import zlib
+import msgpack
 from os import urandom
 from time import sleep
 from random import randint
@@ -14,6 +14,11 @@ class NetworkUtils:
     class transmission_types:
         ping = 0
         data_transfer = 1
+
+
+    class data_encoders:
+        simple = pickle
+        advanced = msgpack
 
 
     @classmethod
@@ -32,12 +37,12 @@ class NetworkUtils:
 
 
     @classmethod
-    def _sendData(cls, _socket, data, transmission_type, compress):
+    def _sendData(cls, _socket, data, transmission_type, encoder, compress):
         if not cls._check_transmission_type(transmission_type):
             raise TypeError('invalid transmission_type provided')
 
         if type(data) != bytes:
-            body = pickle.dumps(data)
+            body = encoder.dumps(data)
             pre_encoded = False
         else:
             body = data
@@ -46,7 +51,7 @@ class NetworkUtils:
         if compress:
             body = zlib.compress(body)
         
-        header = pickle.dumps(
+        header = encoder.dumps(
             {
                 'transmission_type': transmission_type,
                 'body_size': len(body),
@@ -60,15 +65,15 @@ class NetworkUtils:
 
 
     @classmethod
-    def _recvData(cls, _socket, header_size):
-        header = pickle.loads(_socket.recv(header_size))
+    def _recvData(cls, _socket, encoder, header_size):
+        header = encoder.loads(_socket.recv(header_size))
         body = _socket.recv(header['body_size'])
 
         if header['compressed']:
             body = zlib.decompress(body)
 
         if not header['pre_encoded']:
-            body = pickle.loads(body)
+            body = encoder.loads(body)
 
         return body
 
@@ -195,7 +200,7 @@ class Server:
             self.ban_ip_address(client_address[0])
 
 
-    def sendData(self, client_address: tuple, data, transmission_type=NetworkUtils.transmission_types.data_transfer, compress=False):
+    def sendData(self, client_address: tuple, data, transmission_type=NetworkUtils.transmission_types.data_transfer, data_encoder=NetworkUtils.data_encoders.simple, compress=False):
         # get the clientsocket of the client in self.clients_pool matching the address
         clientsocket = self.clients_pool[
             self._getClientIndex(client_address)
@@ -203,7 +208,7 @@ class Server:
 
         # try to send the data to client
         try:
-            NetworkUtils._sendData(clientsocket, data, transmission_type, compress)
+            NetworkUtils._sendData(clientsocket, data, transmission_type, data_encoder, compress)
 
         # if the client connection is broken remove the client
         except ConnectionError:
@@ -216,7 +221,7 @@ class Server:
 
 
 
-    def recvData(self, client_address: tuple):
+    def recvData(self, client_address: tuple, data_encoder=NetworkUtils.data_encoders.simple):
         # get the clientsocket of the client in self.clients_pool matching the address
         clientsocket = self.clients_pool[
             self._getClientIndex(client_address)
@@ -224,7 +229,7 @@ class Server:
 
         # try to recv data from client
         try:
-            return NetworkUtils._recvData(clientsocket, self.max_header_size)
+            return NetworkUtils._recvData(clientsocket, data_encoder, self.max_header_size)
 
         # if the client connection is broken remove the client
         except ConnectionError:
@@ -260,11 +265,11 @@ class Client:
         self.s.close()
 
 
-    def sendData(self, data, transmission_type=NetworkUtils.transmission_types.data_transfer, compress=False):
+    def sendData(self, data, transmission_type=NetworkUtils.transmission_types.data_transfer, data_encoder=NetworkUtils.data_encoders.simple, compress=False):
         # send data using the socket self.s
-        NetworkUtils._sendData(self.s, data, transmission_type, compress)
+        NetworkUtils._sendData(self.s, data, transmission_type, data_encoder, compress)
 
 
-    def recvData(self):
+    def recvData(self, data_encoder=NetworkUtils.data_encoders.simple,):
         # receieve data using the socket self.s
-        return NetworkUtils._recvData(self.s, self.max_header_size)
+        return NetworkUtils._recvData(self.s, data_encoder, self.max_header_size)
