@@ -22,10 +22,10 @@ class NetworkUtils:
 
 
     @classmethod
-    def ping(cls, _socket):
+    def ping(cls, _socket, data_encoder):
         cls._sendData(
             _socket, cls.transmission_types.ping,
-            urandom(64), False,
+            urandom(64), data_encoder, False
         )
 
 
@@ -38,6 +38,8 @@ class NetworkUtils:
 
     @classmethod
     def _sendData(cls, _socket, data, transmission_type, encoder, compress):
+        encoder = getattr(NetworkUtils.data_encoders, encoder)
+        
         if not cls._check_transmission_type(transmission_type):
             raise TypeError('invalid transmission_type provided')
 
@@ -66,6 +68,8 @@ class NetworkUtils:
 
     @classmethod
     def _recvData(cls, _socket, encoder, header_size):
+        encoder = getattr(NetworkUtils.data_encoders, encoder)
+
         header = encoder.loads(_socket.recv(header_size))
         body = _socket.recv(header['body_size'])
 
@@ -200,7 +204,7 @@ class Server:
             self.ban_ip_address(client_address[0])
 
 
-    def sendData(self, client_address: tuple, data, transmission_type=NetworkUtils.transmission_types.data_transfer, data_encoder=NetworkUtils.data_encoders.simple, compress=False):
+    def sendData(self, client_address: tuple, data, transmission_type=NetworkUtils.transmission_types.data_transfer, data_encoder='simple', compress=False):
         # get the clientsocket of the client in self.clients_pool matching the address
         clientsocket = self.clients_pool[
             self._getClientIndex(client_address)
@@ -221,7 +225,7 @@ class Server:
 
 
 
-    def recvData(self, client_address: tuple, data_encoder=NetworkUtils.data_encoders.simple):
+    def recvData(self, client_address: tuple, data_encoder='simple'):
         # get the clientsocket of the client in self.clients_pool matching the address
         clientsocket = self.clients_pool[
             self._getClientIndex(client_address)
@@ -265,11 +269,11 @@ class Client:
         self.s.close()
 
 
-    def sendData(self, data, transmission_type=NetworkUtils.transmission_types.data_transfer, data_encoder=NetworkUtils.data_encoders.simple, compress=False):
+    def sendData(self, data, transmission_type=NetworkUtils.transmission_types.data_transfer, data_encoder='simple', compress=False):
         # send data using the socket self.s
         NetworkUtils._sendData(self.s, data, transmission_type, data_encoder, compress)
 
 
-    def recvData(self, data_encoder=NetworkUtils.data_encoders.simple,):
+    def recvData(self, data_encoder='simple',):
         # receieve data using the socket self.s
         return NetworkUtils._recvData(self.s, data_encoder, self.max_header_size)
