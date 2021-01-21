@@ -11,38 +11,15 @@ from threading import Thread
 
 
 class NetworkUtils:
-    class transmission_types:
-        ping = 0
-        data_transfer = 1
-
-
     class data_encoders:
         simple = pickle
         advanced = msgpack
 
 
     @classmethod
-    def ping(cls, _socket, data_encoder):
-        cls._sendData(
-            _socket, cls.transmission_types.ping,
-            urandom(64), data_encoder, False
-        )
-
-
-    @classmethod
-    def _check_transmission_type(cls, _type):
-        if not _type in [getattr(cls.transmission_types, i) for i in dir(cls.transmission_types) if not i.startswith('__')]:
-            return False
-        return True
-
-
-    @classmethod
-    def _sendData(cls, _socket, data, transmission_type, encoder, compress):
+    def _sendData(cls, _socket, data, encoder, compress):
         encoder = getattr(NetworkUtils.data_encoders, encoder)
         
-        if not cls._check_transmission_type(transmission_type):
-            raise TypeError('invalid transmission_type provided')
-
         if type(data) != bytes:
             body = encoder.dumps(data)
             pre_encoded = False
@@ -55,7 +32,6 @@ class NetworkUtils:
         
         header = encoder.dumps(
             {
-                'transmission_type': transmission_type,
                 'body_size': len(body),
                 'compressed': compress,
                 'pre_encoded': pre_encoded
@@ -204,7 +180,7 @@ class Server:
             self.ban_ip_address(client_address[0])
 
 
-    def sendData(self, client_address: tuple, data, transmission_type=NetworkUtils.transmission_types.data_transfer, data_encoder='simple', compress=False):
+    def sendData(self, client_address: tuple, data, data_encoder='simple', compress=False):
         # get the clientsocket of the client in self.clients_pool matching the address
         clientsocket = self.clients_pool[
             self._getClientIndex(client_address)
@@ -212,7 +188,7 @@ class Server:
 
         # try to send the data to client
         try:
-            NetworkUtils._sendData(clientsocket, data, transmission_type, data_encoder, compress)
+            NetworkUtils._sendData(clientsocket, data, data_encoder, compress)
 
         # if the client connection is broken remove the client
         except ConnectionError:
@@ -269,9 +245,9 @@ class Client:
         self.s.close()
 
 
-    def sendData(self, data, transmission_type=NetworkUtils.transmission_types.data_transfer, data_encoder='simple', compress=False):
+    def sendData(self, data, data_encoder='simple', compress=False):
         # send data using the socket self.s
-        NetworkUtils._sendData(self.s, data, transmission_type, data_encoder, compress)
+        NetworkUtils._sendData(self.s, data, data_encoder, compress)
 
 
     def recvData(self, data_encoder='simple',):
