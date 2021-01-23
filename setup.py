@@ -11,10 +11,3 @@ setup(
         'msgpack>=1.0.2'
     ]
 )
-
-
-"""
-Requirements
-============
-dill
-"""
