@@ -1,5 +1,5 @@
 from setuptools import setup, find_packages
-
+import msgpack
 
 setup(
     name='socket_network',
@@ -8,7 +8,7 @@ setup(
     packages=find_packages(),
     package_dir={'': 'source'},
     install_requires=[
-        'dill>=0.3.3'
+        'msgpack>=1.0.2'
     ]
 )
 
