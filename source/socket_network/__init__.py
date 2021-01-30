@@ -128,7 +128,7 @@ class Server:
 
 
     def _updateClientQueue(self, client=None):
-        if client != None:
+        if isinstance(client, self.Client):
             self.clients_queue.append(client)
 
         if len(self.clients_pool) < self.max_clients:
