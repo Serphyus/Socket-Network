@@ -92,7 +92,7 @@ class Server:
         self.disconnect_at_timeout = kwargs.get('disconnect_at_timeout', False)
 
         # create threads to run in background
-        self.server_threads = type(
+        self.threads = type(
             'obj', (object,),
             {
                 'client_listener': Thread(target=self._listenForClients, args=(self.max_clients,), daemon=True),
@@ -100,7 +100,7 @@ class Server:
         )
 
         # start the client listener thread
-        self.server_threads.client_listener.start()
+        self.threads.client_listener.start()
     
 
     def _listenForClients(self, max_clients, delay=0.1):
