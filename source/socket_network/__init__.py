@@ -2,9 +2,7 @@ import socket
 import pickle
 import zlib
 import msgpack
-from os import urandom
 from time import sleep
-from random import randint
 from threading import Thread
 
 
@@ -71,15 +69,14 @@ class Server:
                 self.clientsocket.settimeout(socket_timeout)
 
 
-
-    def __init__(self, server_address, **kwargs):
+    def __init__(self, server_address, max_clients, **kwargs):
         # setup the server socket
         self.s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.s.bind(server_address)
         self.s.listen(kwargs.get('backlog', 1))
 
         # set max client connections and create clients pool and queue
-        self.max_clients = kwargs.get('max_clients', 4)
+        self.max_clients = max_clients
         self.clients_pool = []
         self.clients_queue = []
 
