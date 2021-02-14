@@ -4,7 +4,7 @@ import zlib
 import msgpack
 from time import sleep
 from threading import Thread
-
+from ._version import __version__
 
 
 
