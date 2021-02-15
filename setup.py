@@ -1,9 +1,11 @@
 from setuptools import setup, find_packages
-import msgpack
+from importlib import import_module
+
+version = import_module('source.socket_network._version')
 
 setup(
     name='socket_network',
-    version='0.0.1',
+    version=version.__version__,
     author='Serphyus',
     packages=find_packages(),
     package_dir={'': 'source'},

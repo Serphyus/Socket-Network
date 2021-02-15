@@ -4,6 +4,7 @@ import zlib
 import msgpack
 from time import sleep
 from threading import Thread
+from types import SimpleNamespace
 from ._version import __version__
 
 
@@ -89,9 +90,8 @@ class Server:
         self.disconnect_at_timeout = kwargs.get('disconnect_at_timeout', False)
 
         # create threads to run in background
-        self.threads = type(
-            'obj', (object,),
-            {
+        self.threads = SimpleNamespace(
+            **{
                 'client_listener': Thread(target=self._listenForClients, args=(self.max_clients,), daemon=True),
             }
         )
