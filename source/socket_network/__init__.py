@@ -94,7 +94,7 @@ class Server:
         # create daemon threads to be run in background
         if hasattr(self, 'client_listener'):
             if self.client_listener.is_alive:
-                raise ThreadError('client_listener thraed is already running')
+                raise ThreadError('client_listener thread is already running')
             self.client_listener.start()
 
         self.client_listener = Thread(target=self._listenForClients, args=(callback, *callback_args), daemon=True)
