@@ -76,6 +76,7 @@ class Server:
         self.s.listen(kwargs.get('backlog', 1))
 
         # set max client connections and create clients pool and queue
+        self.address = server_address
         self.max_clients = max_clients
         self.clients_pool = []
         self.clients_queue = []
