@@ -3,8 +3,7 @@ import pickle
 import zlib
 import msgpack
 from time import sleep
-from threading import Thread
-from types import SimpleNamespace
+from threading import Thread, ThreadError
 from ._version import __version__
 
 
@@ -16,7 +15,7 @@ class NetworkUtils:
 
 
     @classmethod
-    def _sendData(cls, _socket, data, encoder, compress):
+    def _sendData(cls, _socket, data: any, encoder: str, compress: bool) -> None:
         encoder = getattr(NetworkUtils.data_encoders, encoder)
         
         if type(data) != bytes:
@@ -42,7 +41,7 @@ class NetworkUtils:
 
 
     @classmethod
-    def _recvData(cls, _socket, encoder, header_size):
+    def _recvData(cls, _socket, encoder: str, header_size: int) -> any:
         encoder = getattr(NetworkUtils.data_encoders, encoder)
 
         header = encoder.loads(_socket.recv(header_size))
@@ -60,7 +59,7 @@ class NetworkUtils:
 
 class Server:
     class Client:
-        def __init__(self, server, address, clientsocket, socket_timeout=None):
+        def __init__(self, address: tuple, clientsocket, socket_timeout=None):
             # set attributes for the client
             self.address = address
             self.clientsocket = clientsocket
@@ -70,7 +69,7 @@ class Server:
                 self.clientsocket.settimeout(socket_timeout)
 
 
-    def __init__(self, server_address, max_clients, **kwargs):
+    def __init__(self, server_address: tuple, max_clients: int, **kwargs):
         # setup the server socket
         self.s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.s.bind(server_address)
@@ -89,18 +88,19 @@ class Server:
         self.accepting_clients = kwargs.get('accepting_clients', True)
         self.disconnect_at_timeout = kwargs.get('disconnect_at_timeout', False)
 
-        # create threads to run in background
-        self.threads = SimpleNamespace(
-            **{
-                'client_listener': Thread(target=self._listenForClients, args=(self.max_clients,), daemon=True),
-            }
-        )
-
-        # start the client listener thread
-        self.threads.client_listener.start()
     
+    def listen(self, callback=None, *callback_args) -> None:
+        # create daemon threads to be run in background
+        if hasattr(self, 'client_listener'):
+            if self.client_listener.is_alive:
+                raise ThreadError('client_listener thraed is already running')
+            self.client_listener.start()
 
-    def _listenForClients(self, max_clients, delay=0.1):
+        self.client_listener = Thread(target=self._listenForClients, args=(callback, *callback_args), daemon=True)
+        self.client_listener.start()
+
+
+    def _listenForClients(self, callback=None, *callback_args) -> None:
         while True:
             # if the flag accepting_clients is True then enter this loop
             while self.accepting_clients:
@@ -108,33 +108,42 @@ class Server:
                 # accept a new client and create a client instance
                 clientsocket, address = self.s.accept()
                 if not address[0] in self.banned_clients:
-                    client = self.Client(self, address, clientsocket)
+                    client = self.Client(address, clientsocket)
 
                     if not self.accepting_clients:
                         break
 
                     # add new client to the queue
                     self._updateClientQueue(client)
+
+                    if callback != None:
+                        if callable(callback):
+                            callback(client=client, *callback_args)
+                        else:
+                            raise TypeError(f'{type(callback)} is not callable')
+
                     del(client)
 
                 else: clientsocket.close()
                 del(clientsocket, address)
-
+            
             # while server is not accepting clients wait 0.1 seconds for each time it checks
             sleep(0.1)
 
 
-    def _updateClientQueue(self, client=None):
+    def _updateClientQueue(self, client=None) -> None:
         if isinstance(client, self.Client):
             self.clients_queue.append(client)
 
-        if len(self.clients_pool) < self.max_clients:
+        while len(self.clients_pool) < self.max_clients:
             if len(self.clients_queue) > 0:
                 self.clients_pool.append(self.clients_queue[0])
                 self.clients_queue.pop(0)
+            else:
+                break
 
 
-    def _getClientIndex(self, client_address: tuple):
+    def _getClientIndex(self, client_address: tuple) -> int:
         # go through each client in the pool and return the index that matches the address 
         for index, client in enumerate(self.clients_pool):
             if client_address == client.address:
@@ -142,21 +151,30 @@ class Server:
         raise IndexError(f'{client_address} was not found in self.client_pool')
 
 
-    def getClients(self):
-        return [client.address for client in self.clients_pool]
+    def updateMaxClients(self, max_clients: int) -> None:
+        self.max_clients = max_clients
+        self._updateClientQueue()
 
 
-    def ban_ip_address(self, ip_address):
+    def getClient(self, client_address: tuple) -> object:
+        return self.clients_pool[self._getClientIndex(client_address)]
+
+
+    def getAllClients(self) -> list:
+        return [client for client in self.clients_pool]
+
+
+    def ban_ip_address(self, ip_address) -> None:
         if ip_address not in self.banned_clients:
             self.banned_clients.append(ip_address)
 
 
-    def unban_ip_address(self, ip_address):
+    def unban_ip_address(self, ip_address) -> None:
         if ip_address in self.banned_clients:
             self.banned_clients.remove(ip_address)
 
 
-    def removeClient(self, client_address: tuple, ban_ip=False):
+    def removeClient(self, client_address: tuple, ban_ip=False) -> None:
         # get client index that matches the client_address parameter from client pool
         client_index = self._getClientIndex(client_address)
 
@@ -177,7 +195,7 @@ class Server:
             self.ban_ip_address(client_address[0])
 
 
-    def sendData(self, client_address: tuple, data, data_encoder='simple', compress=False):
+    def sendData(self, client_address: tuple, data, data_encoder='simple', compress=False) -> None:
         # get the clientsocket of the client in self.clients_pool matching the address
         clientsocket = self.clients_pool[
             self._getClientIndex(client_address)
@@ -198,7 +216,7 @@ class Server:
 
 
 
-    def recvData(self, client_address: tuple, data_encoder='simple'):
+    def recvData(self, client_address: tuple, data_encoder='simple') -> any:
         # get the clientsocket of the client in self.clients_pool matching the address
         clientsocket = self.clients_pool[
             self._getClientIndex(client_address)
@@ -232,21 +250,21 @@ class Client:
         self.max_header_size = kwargs.get('max_header_size', 256)
 
 
-    def connect(self, server_address):
+    def connect(self, server_address) -> None:
         # connect to server
         self.s.connect(server_address)
 
 
-    def disconnect(self):
+    def disconnect(self) -> None:
         # disconnect from the server
         self.s.close()
 
 
-    def sendData(self, data, data_encoder='simple', compress=False):
+    def sendData(self, data, data_encoder='simple', compress=False) -> None:
         # send data using the socket self.s
         NetworkUtils._sendData(self.s, data, data_encoder, compress)
 
 
-    def recvData(self, data_encoder='simple',):
+    def recvData(self, data_encoder='simple',) -> any:
         # receieve data using the socket self.s
         return NetworkUtils._recvData(self.s, data_encoder, self.max_header_size)
