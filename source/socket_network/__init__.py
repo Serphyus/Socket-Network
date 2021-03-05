@@ -157,7 +157,7 @@ class Server:
         self._updateClientQueue()
 
 
-    def getClient(self, client_address: tuple) -> Server.Client:
+    def getClient(self, client_address: tuple) -> Client:
         return self.clients_pool[self._getClientIndex(client_address)]
 
 
@@ -165,8 +165,8 @@ class Server:
         return [client for client in self.clients_pool]
 
 
-    def checkAddress(self, ip_address: tuple) -> bool:
-        split_ip = ip_address[0].split('.')
+    def checkAddress(self, ipv4_address: str, port: int) -> bool:
+        split_ip = ipv4_address.split('.')
         if len(split_ip) != 4:
             return False
         
@@ -174,37 +174,35 @@ class Server:
             if not i.isdigit():
                 return False
         
-        if type(ip_address[1]) != int:
-            return False
-        
+        if port != None:
+            if type(port) != int:
+                return False
+
         return True
 
 
-    def ban_ip_address(self, ip_address: tuple) -> None:
-        if not self.checkAddress(ip_address):
-            raise TypeError('%s is not a valid address' % ip_address)
+    def ban_ip_address(self, ipv4_address: str) -> None:
+        if not self.checkAddress(ipv4_address, None):
+            raise TypeError('%s is not a valid address' % ipv4_address)
         
-        if ip_address in self.banned_clients:
-            raise IndexError('%s is already banned' % ip_address)
+        if ipv4_address in self.banned_clients:
+            raise IndexError('%s is already banned' % ipv4_address)
 
-        self.removeClient(
-            client_address=ip_address,
-            ban_ip=False
-        )
+        for client in self.getAllClients():
+            if client.address[0] == ipv4_address:
+                self.removeClient(client.address)
         
-        self.banned_clients.append(ip_address)
-        return True
+        self.banned_clients.append(ipv4_address)
 
 
-    def unban_ip_address(self, ip_address) -> None:
-        if ip_address in self.banned_clients:
-            raise TypeError('%s is not a valid address' % ip_address)
+    def unban_ip_address(self, ipv4_address: str) -> None:
+        if not self.checkAddress(ipv4_address, None):
+            raise TypeError('%s is not a valid address' % ipv4_address)
         
-        if ip_address in self.banned_clients:
-            raise IndexError('%s is not already banned' % ip_address)
+        if ipv4_address in self.banned_clients:
+            raise IndexError('%s is not banned' % ipv4_address)
 
-        self.banned_clients.remove(ip_address)
-        return True
+        self.banned_clients.remove(ipv4_address)
 
 
     def removeClient(self, client_address: tuple, ban_ip=False) -> None:
