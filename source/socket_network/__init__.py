@@ -157,7 +157,7 @@ class Server:
         self._updateClientQueue()
 
 
-    def getClient(self, client_address: tuple) -> object:
+    def getClient(self, client_address: tuple) -> Server.Client:
         return self.clients_pool[self._getClientIndex(client_address)]
 
 
@@ -174,7 +174,7 @@ class Server:
             if not i.isdigit():
                 return False
         
-        if not ip_address[1].isdigit():
+        if type(ip_address[1]) != int:
             return False
         
         return True
@@ -182,18 +182,23 @@ class Server:
 
     def ban_ip_address(self, ip_address: tuple) -> None:
         if not self.checkAddress(ip_address):
-            raise TypeError('%s is not a valid addres' % ip_address)
+            raise TypeError('%s is not a valid address' % ip_address)
         
         if ip_address in self.banned_clients:
             raise IndexError('%s is already banned' % ip_address)
 
+        self.removeClient(
+            client_address=ip_address,
+            ban_ip=False
+        )
+        
         self.banned_clients.append(ip_address)
         return True
 
 
     def unban_ip_address(self, ip_address) -> None:
         if ip_address in self.banned_clients:
-            raise TypeError('%s is not a valid addres' % ip_address)
+            raise TypeError('%s is not a valid address' % ip_address)
         
         if ip_address in self.banned_clients:
             raise IndexError('%s is not already banned' % ip_address)
@@ -231,7 +236,12 @@ class Server:
 
         # try to send the data to client
         try:
-            NetworkUtils._sendData(clientsocket, data, data_encoder, compress)
+            NetworkUtils._sendData(
+                _socket=clientsocket,
+                data=data,
+                encoder=data_encoder,
+                compress=compress
+            )
 
         # if the client connection is broken remove the client
         except ConnectionError:
@@ -252,7 +262,11 @@ class Server:
 
         # try to recv data from client
         try:
-            return NetworkUtils._recvData(clientsocket, data_encoder, self.max_header_size)
+            return NetworkUtils._recvData(
+                _socket=clientsocket,
+                encoder=data_encoder,
+                header_size=self.max_header_size
+            )
 
         # if the client connection is broken remove the client
         except ConnectionError:
@@ -290,9 +304,18 @@ class Client:
 
     def sendData(self, data, data_encoder='simple', compress=False) -> None:
         # send data using the socket self.s
-        NetworkUtils._sendData(self.s, data, data_encoder, compress)
+        NetworkUtils._sendData(
+            _socket=self.s,
+            data=data,
+            encoder=data_encoder,
+            compress=compress
+        )
 
 
     def recvData(self, data_encoder='simple',) -> any:
         # receieve data using the socket self.s
-        return NetworkUtils._recvData(self.s, data_encoder, self.max_header_size)
+        return NetworkUtils._recvData(
+            _socket=self.s,
+            encoder=data_encoder,
+            header_size=self.max_header_size
+        )
